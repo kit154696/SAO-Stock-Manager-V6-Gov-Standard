@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบบริหารพัสดุ อบต. V3 (Audit Ready)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        :root {
+            --primary: #2c3e50; /* Navy Blue */
+            --accent: #d35400; /* Orange */
+            --success: #27ae60; 
+            --danger: #c0392b; 
+            --void: #7f8fa6;
+            --bg-body: #ecf0f1;
+            --bg-card: #ffffff;
+            --border: #bdc3c7;
+        }
+        
+        * { box-sizing: border-box; font-family: 'Sarabun', sans-serif; }
+        body { margin: 0; padding: 0; background: var(--bg-body); display: flex; height: 100vh; overflow: hidden; }
+
+        /* --- Layout --- */
+        .sidebar { width: 260px; background: var(--primary); color: white; display: flex; flex-direction: column; padding: 20px; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
+        .sidebar h2 { margin: 0 0 20px 0; font-size: 20px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 15px; }
+        .user-profile { background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; margin-bottom: 20px; font-size: 13px; }
+        .user-profile input { background: transparent; border: none; color: #f1c40f; font-weight: bold; width: 100%; outline: none; }
+        
+        .menu-item { padding: 12px 15px; cursor: pointer; border-radius: 6px; margin-bottom: 5px; transition: 0.2s; display: flex; align-items: center; gap: 10px; }
+        .menu-item:hover, .menu-item.active { background: rgba(255,255,255,0.15); font-weight: bold; border-left: 4px solid var(--accent); }
+        .menu-item i { width: 20px; text-align: center; }
+
+        .main-content { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; }
+        
+        /* --- Sections --- */
+        .section { display: none; animation: fadeIn 0.3s; }
+        .section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- UI Components --- */
+        .card { background: var(--bg-card); border-radius: 8px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid #eee; }
+        
+        .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: white; padding: 15px; border-radius: 8px; border-left: 5px solid var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .stat-card h4 { margin: 0; color: #7f8fa6; font-size: 14px; }
+        .stat-card .val { font-size: 24px; font-weight: bold; color: var(--primary); margin-top: 5px; }
+
+        .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        .full-width { grid-column: span 2; }
+        .quarter-width { grid-template-columns: repeat(4, 1fr); }
+        
+        label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #34495e; }
+        input, select, textarea { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 4px; background: #fff; transition: 0.2s; }
+        input:focus, select:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 2px rgba(211, 84, 0, 0.1); }
+        input[readonly] { background: #f8f9fa; color: #7f8fa6; }
+
+        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; transition: 0.2s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-void { background: var(--void); color: white; }
+        .btn-edit { background: #f39c12; color: white; padding: 5px 10px; font-size: 12px; border-radius: 4px; }
+        .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
+        /* --- Tables --- */
+        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        th { background: #f8f9fa; padding: 12px; text-align: left; border-bottom: 2px solid var(--border); color: #2c3e50; font-weight: 600; }
+        td { padding: 12px; border-bottom: 1px solid #eee; }
+        tr:hover { background: #f1f2f6; }
+        
+        .status-badge { padding: 4px 8px; border-radius: 12px; font-size: 11px; color: white; font-weight: bold; }
+        .bg-ok { background: var(--success); }
+        .bg-low { background: var(--accent); }
+        .bg-out { background: var(--danger); }
+        .bg-void { background: var(--void); text-decoration: line-through; }
+        .row-void { opacity: 0.5; background: #f2f2f2; }
+        .row-void td { text-decoration: line-through; color: #999; }
+
+        /* --- Modal --- */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+        .modal.show { display: flex; }
+        .modal-content { background: white; padding: 25px; width: 90%; max-width: 600px; border-radius: 8px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+
+        @media print {
+            .sidebar, .no-print, .btn { display: none !important; }
+            body { background: white; height: auto; overflow: visible; }
+            .main-content { padding: 0; }
+            .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
+            th { border-bottom: 1px solid #000; }
+        }
+    </style>
+</head>
+<body>
+
+<nav class="sidebar">
+    <h2>🏛️ พัสดุ อบต. V3</h2>
+    
+    <div class="user-profile">
+        <label style="color:#bdc3c7; font-size:11px;">ผู้ใช้งานปัจจุบัน (Audit Log)</label>
+        <i class="fas fa-user-circle"></i> 
+        <input type="text" id="currentUser" value="เจ้าหน้าที่พัสดุ" title="คลิกเพื่อเปลี่ยนชื่อ">
+    </div>
+
+    <div class="menu-item active" onclick="showSection('dashboard')"><i class="fas fa-chart-pie"></i> ภาพรวม (Dashboard)</div>
+    <div class="menu-item" onclick="showSection('transaction')"><i class="fas fa-exchange-alt"></i> บันทึก รับ-จ่าย</div>
+    <div class="menu-item" onclick="showSection('master-data')"><i class="fas fa-boxes"></i> ทะเบียนวัสดุ (Master)</div>
+    <div class="menu-item" onclick="showSection('reports')"><i class="fas fa-print"></i> รายงาน/ตรวจสอบ</div>
+    
+    <div style="margin-top:auto; font-size:12px; opacity:0.7; border-top:1px solid rgba(255,255,255,0.1); padding-top:15px;">
+        <div style="margin-bottom:5px;"><i class="fas fa-database"></i> Database Management</div>
+        <button onclick="backupData()" style="background:none; border:1px solid white; color:white; padding:5px; width:100%; cursor:pointer; text-align:left; margin-bottom:5px;">💾 Backup Data</button>
+        <input type="file" id="restoreFile" hidden onchange="restoreData(this)">
+        <button onclick="document.getElementById('restoreFile').click()" style="background:none; border:1px solid white; color:white; padding:5px; width:100%; cursor:pointer; text-align:left;">♻️ Restore Data</button>
+    </div>
+</nav>
+
+<main class="main-content">
+    
+    <div id="dashboard" class="section active">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h3>📊 สรุปสถานการณ์พัสดุ</h3>
+            <div>
+                <label style="display:inline; margin-right:10px;">ปีงบประมาณ:</label>
+                <select id="fiscalYearFilter" onchange="renderDashboard()" style="width:150px; padding:5px;">
+                    </select>
+            </div>
+        </div>
+
+        <div class="summary-grid">
+            <div class="stat-card" style="border-color: #27ae60;">
+                <h4>มูลค่ารับเข้า (ปีงบฯ)</h4>
+                <div class="val" id="d-total-in">0.00</div>
+            </div>
+            <div class="stat-card" style="border-color: #c0392b;">
+                <h4>มูลค่าเบิกจ่าย (ปีงบฯ)</h4>
+                <div class="val" id="d-total-out">0.00</div>
+            </div>
+            <div class="stat-card" style="border-color: #f39c12;">
+                <h4>รอสั่งซื้อ (Reorder)</h4>
+                <div class="val" id="d-low-stock">0</div>
+            </div>
+            <div class="stat-card" style="border-color: #2980b9;">
+                <h4>รายการเคลื่อนไหว</h4>
+                <div class="val" id="d-count-tx">0</div>
+            </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 2fr 1fr; gap:20px;">
+            <div class="card">
+                <h4>📈 แนวโน้มการเบิกจ่าย (รายเดือน)</h4>
+                <canvas id="chartMonthly" height="150"></canvas>
+            </div>
+            <div class="card">
+                <h4>🏆 หน่วยงานที่เบิกสูงสุด</h4>
+                <canvas id="chartDivision" height="200"></canvas>
+            </div>
+        </div>
+        
+        <div class="card" style="margin-top:20px;">
+            <h4>⚠️ แจ้งเตือน: วัสดุต่ำกว่าจุดสั่งซื้อ (Reorder Point)</h4>
+            <table id="alertTable">
+                <thead><tr><th>รหัส</th><th>รายการ</th><th>คงเหลือ</th><th>จุดสั่งซื้อ</th><th>สถานะ</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="transaction" class="section">
+        <div class="card">
+            <h3>📝 บันทึกรายการ (รับเข้า / เบิกจ่าย / ปรับปรุง)</h3>
+            <form id="txForm" onsubmit="handleTxSubmit(event)">
+                <input type="hidden" id="txId"> <div class="form-grid">
+                    <div>
+                        <label>วันที่ทำรายการ (Date)</label>
+                        <input type="date" id="txDate" required>
+                    </div>
+                    <div>
+                        <label>ประเภทธุรกรรม (Transaction Type)</label>
+                        <select id="txType" onchange="toggleTxFields()" required>
+                            <option value="OUT">🔴 เบิกจ่าย (ใช้งาน)</option>
+                            <option value="IN">🟢 ตรวจรับ (ซื้อ/จ้าง)</option>
+                            <option value="ADJ">🔧 ปรับปรุงยอด (ตรวจนับ)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="background:#f8f9fa; padding:15px; border-radius:6px; margin:15px 0; border:1px solid #eee;">
+                    <div class="form-grid">
+                        <div class="full-width">
+                            <label>เลือกวัสดุ (ระบุชื่อ หรือ รหัส)</label>
+                            <input type="text" id="txProductSearch" list="masterList" placeholder="พิมพ์ชื่อเพื่อค้นหา..." onchange="fillProductInfo()" required>
+                            <datalist id="masterList"></datalist>
+                            <input type="hidden" id="txProdId">
+                        </div>
+                        
+                        <div>
+                            <label>จำนวน (Quantity)</label>
+                            <input type="number" id="txQty" min="0.01" step="0.01" required style="font-weight:bold; color:#2c3e50;">
+                        </div>
+                        <div>
+                            <label>หน่วยนับ</label>
+                            <input type="text" id="txUnit" readonly>
+                        </div>
+
+                        <div class="in-only" style="display:none;">
+                            <label>Lot / Batch No. (ถ้ามี)</label>
+                            <input type="text" id="txLot" placeholder="Optional">
+                        </div>
+                        <div class="in-only" style="display:none;">
+                            <label>วันหมดอายุ (Exp Date)</label>
+                            <input type="date" id="txExp">
+                        </div>
+                        
+                        <div class="in-only" style="display:none;">
+                            <label>ราคาต่อหน่วย (บาท)</label>
+                            <input type="number" id="txPrice" min="0" step="0.01" onchange="calcTotal()">
+                        </div>
+                        <div class="in-only" style="display:none;">
+                            <label>ราคารวม (บาท)</label>
+                            <input type="number" id="txTotal" readonly>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="out-only">
+                        <label>หน่วยงานผู้ขอเบิก</label>
+                        <select id="txDivision">
+                            <option value="">-- ไม่ระบุ --</option>
+                            <option value="สำนักปลัด">สำนักปลัด</option>
+                            <option value="กองคลัง">กองคลัง</option>
+                            <option value="กองช่าง">กองช่าง</option>
+                            <option value="กองการศึกษา">กองการศึกษา</option>
+                            <option value="กองสาธารณสุขฯ">กองสาธารณสุขฯ</option>
+                            <option value="กองสวัสดิการสังคม">กองสวัสดิการสังคม</option>
+                            <option value="หน่วยตรวจสอบภายใน">หน่วยตรวจสอบภายใน</option>
+                        </select>
+                    </div>
+                    <div class="out-only">
+                        <label>ชื่อผู้เบิก / ผู้รับของ</label>
+                        <input type="text" id="txRequester">
+                    </div>
+                    
+                    <div class="in-only" style="display:none;">
+                        <label>ผู้ขาย / คู่สัญญา</label>
+                        <input type="text" id="txSupplier">
+                    </div>
+                    <div class="in-only" style="display:none;">
+                        <label>เลขที่เอกสารอ้างอิง (สำคัญ)</label>
+                        <input type="text" id="txRefDoc" placeholder="เช่น ใบส่งของเล่มที่.../เลขที่...">
+                    </div>
+
+                    <div class="full-width">
+                        <label>หมายเหตุ / วัตถุประสงค์ / ลิงก์ไฟล์แนบ</label>
+                        <input type="text" id="txRemark" placeholder="เช่น ใช้ในโครงการ... หรือ URL ไฟล์ภาพ">
+                    </div>
+                </div>
+
+                <div style="margin-top:20px; display:flex; gap:10px; justify-content: flex-end;">
+                    <button type="button" class="btn" onclick="resetTxForm()" style="background:#bdc3c7;">ล้างค่า</button>
+                    <button type="button" id="voidBtn" class="btn btn-void" style="display:none;" onclick="voidTransaction()">🚫 ยกเลิกรายการ (Void)</button>
+                    <button type="submit" class="btn btn-primary" id="saveBtn"><i class="fas fa-save"></i> บันทึกรายการ</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="card">
+            <h4>ประวัติการทำรายการล่าสุด (Audit Log)</h4>
+            <table>
+                <thead>
+                    <tr><th>วันที่</th><th>ประเภท</th><th>รายการ</th><th>จำนวน</th><th>อ้างอิง/หน่วยงาน</th><th>ผู้ทำรายการ</th><th>สถานะ</th><th>จัดการ</th></tr>
+                </thead>
+                <tbody id="txTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="master-data" class="section">
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>📦 ทะเบียนวัสดุ (Master Items)</h3>
+                <button class="btn btn-success" onclick="openMasterModal()"><i class="fas fa-plus"></i> เพิ่มวัสดุใหม่</button>
+            </div>
+            <p style="color:#7f8fa6; font-size:13px;">* มาตรฐานข้อมูล: กรุณาใช้ชื่อและหน่วยนับที่เป็นมาตรฐานเดียวกันทั้งองค์กร</p>
+            
+            <input type="text" id="masterSearch" placeholder="🔍 ค้นหาชื่อวัสดุ หรือ หมวดหมู่..." onkeyup="renderMasterTable()" style="margin:10px 0;">
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>รหัส</th>
+                        <th>ชื่อวัสดุ</th>
+                        <th>หมวดหมู่</th>
+                        <th>หน่วยนับ</th>
+                        <th>จุดสั่งซื้อ</th>
+                        <th>คงเหลือ</th>
+                        <th>จัดการ</th>
+                    </tr>
+                </thead>
+                <tbody id="masterTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="reports" class="section">
+        <div class="card">
+            <div class="no-print" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h3>🖨️ ระบบรายงาน (Reporting)</h3>
+                <div>
+                    <button class="btn btn-primary" onclick="window.print()"><i class="fas fa-print"></i> พิมพ์รายงาน</button>
+                    <button class="btn btn-success" onclick="exportCSV()"><i class="fas fa-file-excel"></i> Export Excel</button>
+                </div>
+            </div>
+            
+            <div class="form-grid no-print" style="background:#f1f2f6; padding:15px; margin-bottom:20px; border-radius:8px;">
+                <div>
+                    <label>เลือกประเภทรายงาน</label>
+                    <select id="reportType" onchange="renderReport()">
+                        <option value="BALANCE">1. รายงานยอดคงเหลือปัจจุบัน (Stock Balance)</option>
+                        <option value="MOVEMENT">2. รายงานความเคลื่อนไหวรายตัว (Stock Card)</option>
+                        <option value="SUM_CAT">3. สรุปการเบิกจ่าย ตามหมวดหมู่</option>
+                        <option value="SUM_DIV">4. สรุปการเบิกจ่าย ตามหน่วยงาน</option>
+                    </select>
+                </div>
+                <div id="reportOptionContainer">
+                    <label>เลือกวัสดุ (สำหรับ Stock Card)</label>
+                    <input type="text" id="reportProduct" list="masterList" onchange="renderReport()" placeholder="พิมพ์ชื่อวัสดุ...">
+                </div>
+            </div>
+
+            <div id="reportOutput" style="min-height:300px;">
+                <div style="text-align:center; color:#ccc; margin-top:50px;">กรุณาเลือกประเภทรายงาน</div>
+            </div>
+        </div>
+    </div>
+
+</main>
+
+<div id="masterModal" class="modal">
+    <div class="modal-content">
+        <h3>ข้อมูลวัสดุ (Master Data)</h3>
+        <form onsubmit="saveMasterItem(event)">
+            <input type="hidden" id="mId">
+            <label>รหัสวัสดุ (Auto/Manual)</label>
+            <input type="text" id="mCode" placeholder="เว้นว่างเพื่อสร้างอัตโนมัติ" style="margin-bottom:10px;">
+            
+            <label>ชื่อวัสดุ * (ระบุให้ชัดเจน เช่น "กระดาษ A4 80g")</label>
+            <input type="text" id="mName" required style="margin-bottom:10px;">
+            
+            <div class="form-grid">
+                <div>
+                    <label>หมวดหมู่</label>
+                    <select id="mCategory">
+                        <option>วัสดุสำนักงาน</option>
+                        <option>วัสดุคอมพิวเตอร์</option>
+                        <option>วัสดุงานบ้านงานครัว</option>
+                        <option>วัสดุก่อสร้าง</option>
+                        <option>วัสดุไฟฟ้า/วิทยุ</option>
+                        <option>วัสดุยานพาหนะ</option>
+                        <option>น้ำมันเชื้อเพลิง</option>
+                        <option>ครุภัณฑ์ (ต่ำกว่าเกณฑ์)</option>
+                    </select>
+                </div>
+                <div>
+                    <label>หน่วยนับมาตรฐาน *</label>
+                    <input type="text" id="mUnit" required placeholder="เช่น กล่อง, รีม, อัน">
+                </div>
+            </div>
+            
+            <div class="form-grid" style="margin-top:10px;">
+                <div>
+                    <label>จุดสั่งซื้อ (Min Stock)</label>
+                    <input type="number" id="mMin" value="5">
+                </div>
+                <div>
+                    <label>สถานที่เก็บ (Location)</label>
+                    <input type="text" id="mLocation">
+                </div>
+            </div>
+
+            <div style="margin-top:20px; text-align:right;">
+                <button type="button" class="btn btn-danger" onclick="document.getElementById('masterModal').classList.remove('show')">ปิด</button>
+                <button type="submit" class="btn btn-primary">บันทึกข้อมูล</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // --- GLOBAL DATA STORE ---
+    let DB = {
+        items: [],       // { id, code, name, category, unit, minStock, location }
+        transactions: [] // { id, date, type, itemId, qty, price, division, requester, supplier, refDoc, remark, lot, exp, user, status, timestamp, history[] }
+    };
+
+    // --- INITIALIZATION ---
+    window.onload = function() {
+        loadData();
+        renderFiscalYearSelect();
+        renderDashboard();
+        showSection('dashboard');
+        updateMasterDatalist();
+        document.getElementById('txDate').valueAsDate = new Date();
+    };
+
+    // --- NAVIGATION ---
+    function showSection(id) {
+        document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+        
+        if(id === 'transaction') renderTxTable();
+        if(id === 'master-data') renderMasterTable();
+        if(id === 'reports') renderReport();
+        if(id === 'dashboard') renderDashboard();
+    }
+
+    // --- MASTER DATA ---
+    function openMasterModal(id = null) {
+        document.getElementById('masterModal').classList.add('show');
+        if(id) {
+            const item = DB.items.find(x => x.id === id);
+            document.getElementById('mId').value = item.id;
+            document.getElementById('mCode').value = item.code || item.id;
+            document.getElementById('mName').value = item.name;
+            document.getElementById('mCategory').value = item.category;
+            document.getElementById('mUnit').value = item.unit;
+            document.getElementById('mMin').value = item.minStock;
+            document.getElementById('mLocation').value = item.location || '';
+        } else {
+            document.getElementById('mId').value = '';
+            document.getElementById('mCode').value = '';
+            document.getElementById('mName').value = '';
+            document.getElementById('mUnit').value = '';
+            document.getElementById('mMin').value = 5;
+            document.getElementById('mLocation').value = '';
+        }
+    }
+
+    function saveMasterItem(e) {
+        e.preventDefault();
+        const id = document.getElementById('mId').value;
+        const name = document.getElementById('mName').value.trim();
+        
+        // Duplicate Name Check (ถ้าเป็นรายการใหม่)
+        if (!id && DB.items.some(x => x.name === name)) {
+            alert('ชื่อวัสดุนี้มีอยู่ในระบบแล้ว กรุณาตรวจสอบ');
+            return;
+        }
+
+        const newItem = {
+            id: id ? parseInt(id) : Date.now(),
+            code: document.getElementById('mCode').value.trim() || Date.now().toString(),
+            name: name,
+            category: document.getElementById('mCategory').value,
+            unit: document.getElementById('mUnit').value,
+            minStock: parseInt(document.getElementById('mMin').value),
+            location: document.getElementById('mLocation').value
+        };
+
+        if(id) {
+            const idx = DB.items.findIndex(x => x.id == id);
+            DB.items[idx] = newItem;
+        } else {
+            DB.items.push(newItem);
+        }
+        
+        saveData();
+        document.getElementById('masterModal').classList.remove('show');
+        renderMasterTable();
+        updateMasterDatalist();
+    }
+
+    function renderMasterTable() {
+        const tbody = document.getElementById('masterTableBody');
+        const search = document.getElementById('masterSearch').value.toLowerCase();
+        tbody.innerHTML = '';
+        
+        DB.items.forEach(item => {
+            if(!item.name.toLowerCase().includes(search) && !item.category.toLowerCase().includes(search)) return;
+            const bal = getStockBalance(item.id);
+            const statusColor = bal <= item.minStock ? 'color:red; font-weight:bold;' : 'color:green;';
+            
+            tbody.innerHTML += `
+                <tr>
+                    <td>${item.code}</td>
+                    <td>${sanitize(item.name)}</td>
+                    <td>${item.category}</td>
+                    <td>${item.unit}</td>
+                    <td>${item.minStock}</td>
+                    <td style="${statusColor}">${bal}</td>
+                    <td>
+                        <button class="btn-edit" onclick="openMasterModal(${item.id})">แก้ไข</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    function updateMasterDatalist() {
+        const dl = document.getElementById('masterList');
+        dl.innerHTML = DB.items.map(i => `<option value="${i.name} (${i.code})">`).join('');
+    }
+
+    // --- TRANSACTION & LOGIC ---
+    function toggleTxFields() {
+        const type = document.getElementById('txType').value;
+        document.querySelectorAll('.in-only').forEach(el => el.style.display = (type === 'IN' || type === 'ADJ') ? 'block' : 'none');
+        document.querySelectorAll('.out-only').forEach(el => el.style.display = (type === 'OUT') ? 'block' : 'none');
+    }
+
+    function fillProductInfo() {
+        const val = document.getElementById('txProductSearch').value;
+        const namePart = val.split(' (')[0];
+        const item = DB.items.find(i => i.name === namePart);
+        if(item) {
+            document.getElementById('txProdId').value = item.id;
+            document.getElementById('txUnit').value = item.unit;
+        } else {
+            document.getElementById('txProdId').value = '';
+            document.getElementById('txUnit').value = '';
+        }
+    }
+
+    function calcTotal() {
+        const qty = parseFloat(document.getElementById('txQty').value) || 0;
+        const price = parseFloat(document.getElementById('txPrice').value) || 0;
+        document.getElementById('txTotal').value = (qty * price).toFixed(2);
+    }
+
+    function handleTxSubmit(e) {
+        e.preventDefault();
+        const itemId = document.getElementById('txProdId').value;
+        if(!itemId) { alert('ไม่พบวัสดุในระบบ กรุณาเลือกจากรายการ'); return; }
+
+        const type = document.getElementById('txType').value;
+        const qty = parseFloat(document.getElementById('txQty').value);
+        
+        // Stock Check for OUT
+        if(type === 'OUT') {
+            const currentStock = getStockBalance(itemId);
+            // Allow Edit mode to pass if modifying existing tx
+            const editId = document.getElementById('txId').value;
+            if(!editId && qty > currentStock) {
+                alert(`ยอดคงเหลือไม่พอ! (มี: ${currentStock}, เบิก: ${qty})`);
+                return;
+            }
+        }
+
+        const currentUser = document.getElementById('currentUser').value;
+        const now = new Date().toISOString();
+
+        const txData = {
+            id: document.getElementById('txId').value ? parseInt(document.getElementById('txId').value) : Date.now(),
+            date: document.getElementById('txDate').value,
+            type: type,
+            itemId: parseInt(itemId),
+            qty: qty,
+            price: parseFloat(document.getElementById('txPrice').value) || 0,
+            division: document.getElementById('txDivision').value,
+            requester: document.getElementById('txRequester').value,
+            supplier: document.getElementById('txSupplier').value,
+            refDoc: document.getElementById('txRefDoc').value,
+            remark: document.getElementById('txRemark').value,
+            lot: document.getElementById('txLot').value,
+            exp: document.getElementById('txExp').value,
+            user: currentUser,
+            status: 'ACTIVE',
+            timestamp: now,
+            history: [] 
+        };
+
+        const editIdx = DB.transactions.findIndex(t => t.id === txData.id);
+        
+        if(editIdx >= 0) {
+            // Update Existing: Keep history
+            const oldTx = DB.transactions[editIdx];
+            txData.history = oldTx.history || [];
+            txData.history.push({
+                action: 'EDIT',
+                date: now,
+                user: currentUser,
+                oldQty: oldTx.qty,
+                oldType: oldTx.type
+            });
+            DB.transactions[editIdx] = txData;
+        } else {
+            // New Record
+            DB.transactions.push(txData);
+        }
+
+        saveData();
+        resetTxForm();
+        renderTxTable();
+        alert('บันทึกเรียบร้อย');
+    }
+
+    function voidTransaction() {
+        const id = parseInt(document.getElementById('txId').value);
+        if(!id) return;
+        if(!confirm('ยืนยันการยกเลิกรายการนี้? (Void)\nข้อมูลจะยังเก็บไว้เพื่อการตรวจสอบ แต่จะไม่ถูกนำมาคำนวณยอด')) return;
+
+        const idx = DB.transactions.findIndex(t => t.id === id);
+        if(idx >= 0) {
+            DB.transactions[idx].status = 'VOID';
+            DB.transactions[idx].history.push({
+                action: 'VOID',
+                date: new Date().toISOString(),
+                user: document.getElementById('currentUser').value
+            });
+            saveData();
+            resetTxForm();
+            renderTxTable();
+        }
+    }
+
+    function renderTxTable() {
+        const tbody = document.getElementById('txTableBody');
+        tbody.innerHTML = '';
+        // เรียงวันที่ล่าสุดขึ้นก่อน
+        const list = DB.transactions.slice().sort((a,b) => new Date(b.date) - new Date(a.date));
+        
+        list.slice(0, 50).forEach(t => { // Show last 50
+            const item = DB.items.find(i => i.id === t.itemId);
+            const itemName = item ? item.name : 'Unknown ID:'+t.itemId;
+            const ref = t.type === 'IN' ? (t.supplier || '-') : (t.division || '-');
+            
+            let badgeClass = '';
+            let typeLabel = '';
+            if(t.status === 'VOID') { badgeClass = 'bg-void'; typeLabel = 'ยกเลิก'; }
+            else if(t.type === 'IN') { badgeClass = 'bg-ok'; typeLabel = 'รับเข้า'; }
+            else if(t.type === 'OUT') { badgeClass = 'bg-out'; typeLabel = 'เบิกจ่าย'; }
+            else { badgeClass = 'bg-low'; typeLabel = 'ปรับปรุง'; }
+
+            tbody.innerHTML += `
+                <tr class="${t.status === 'VOID' ? 'row-void' : ''}">
+                    <td>${t.date}</td>
+                    <td><span class="status-badge ${badgeClass}">${typeLabel}</span></td>
+                    <td>${sanitize(itemName)} <br><small style="color:#aaa">${t.remark||''}</small></td>
+                    <td style="font-weight:bold;">${t.qty} ${item?item.unit:''}</td>
+                    <td><small>${t.refDoc ? '#'+t.refDoc : ''}</small><br>${sanitize(ref)}</td>
+                    <td><small>${sanitize(t.user)}</small></td>
+                    <td>${t.status === 'VOID' ? '❌' : '✅'}</td>
+                    <td>
+                        <button class="btn-edit" onclick="loadTxForEdit(${t.id})">แก้ไข</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    function loadTxForEdit(id) {
+        const t = DB.transactions.find(x => x.id === id);
+        if(!t) return;
+        
+        const item = DB.items.find(i => i.id === t.itemId);
+        
+        document.getElementById('txId').value = t.id;
+        document.getElementById('txDate').value = t.date;
+        document.getElementById('txType').value = t.type;
+        toggleTxFields();
+        
+        document.getElementById('txProductSearch').value = item ? `${item.name} (${item.code})` : '';
+        document.getElementById('txProdId').value = t.itemId;
+        document.getElementById('txUnit').value = item ? item.unit : '';
+        document.getElementById('txQty').value = t.qty;
+        document.getElementById('txPrice').value = t.price || 0;
+        calcTotal();
+        
+        document.getElementById('txDivision').value = t.division || '';
+        document.getElementById('txRequester').value = t.requester || '';
+        document.getElementById('txSupplier').value = t.supplier || '';
+        document.getElementById('txRefDoc').value = t.refDoc || '';
+        document.getElementById('txRemark').value = t.remark || '';
+        document.getElementById('txLot').value = t.lot || '';
+        document.getElementById('txExp').value = t.exp || '';
+        
+        // Show Void Button
+        document.getElementById('voidBtn').style.display = 'inline-block';
+        if(t.status === 'VOID') {
+             document.getElementById('saveBtn').disabled = true;
+             document.getElementById('voidBtn').disabled = true;
+             alert('รายการนี้ถูกยกเลิกไปแล้ว ไม่สามารถแก้ไขได้');
+        } else {
+             document.getElementById('saveBtn').disabled = false;
+             document.getElementById('voidBtn').disabled = false;
+        }
+
+        document.getElementById('saveBtn').innerHTML = '<i class="fas fa-edit"></i> บันทึกการแก้ไข';
+        window.scrollTo(0,0);
+    }
+
+    function resetTxForm() {
+        document.getElementById('txForm').reset();
+        document.getElementById('txId').value = '';
+        document.getElementById('voidBtn').style.display = 'none';
+        document.getElementById('saveBtn').innerHTML = '<i class="fas fa-save"></i> บันทึกรายการ';
+        document.getElementById('saveBtn').disabled = false;
+        document.getElementById('txDate').valueAsDate = new Date();
+    }
+
+    // --- DASHBOARD & REPORTS ---
+    function getStockBalance(itemId) {
+        const txs = DB.transactions.filter(t => t.itemId == itemId && t.status !== 'VOID');
+        const income = txs.filter(t => t.type === 'IN' || (t.type === 'ADJ' && t.qty > 0)).reduce((s,t) => s + t.qty, 0);
+        const expense = txs.filter(t => t.type === 'OUT' || (t.type === 'ADJ' && t.qty < 0)).reduce((s,t) => s + Math.abs(t.qty), 0);
+        return parseFloat((income - expense).toFixed(2));
+    }
+
+    function renderDashboard() {
+        const fy = document.getElementById('fiscalYearFilter').value;
+        const [start, end] = getFiscalDateRange(fy);
+
+        const txs = DB.transactions.filter(t => t.status !== 'VOID' && t.date >= start && t.date <= end);
+        
+        // Stats
+        const totalIn = txs.filter(t => t.type === 'IN').reduce((s, t) => s + (t.qty * t.price), 0);
+        const totalOut = txs.filter(t => t.type === 'OUT').length; 
+        
+        document.getElementById('d-total-in').innerText = totalIn.toLocaleString('th-TH', {minimumFractionDigits:2});
+        document.getElementById('d-count-tx').innerText = txs.length;
+        
+        // Low Stock Count
+        let lowCount = 0;
+        const alertBody = document.querySelector('#alertTable tbody');
+        alertBody.innerHTML = '';
+        DB.items.forEach(item => {
+            const bal = getStockBalance(item.id);
+            if(bal <= item.minStock) {
+                lowCount++;
+                const status = bal <= 0 ? '<span class="status-badge bg-out">หมด</span>' : '<span class="status-badge bg-low">ต่ำ</span>';
+                alertBody.innerHTML += `<tr><td>${item.code}</td><td>${item.name}</td><td>${bal} ${item.unit}</td><td>${item.minStock}</td><td>${status}</td></tr>`;
+            }
+        });
+        document.getElementById('d-low-stock').innerText = lowCount;
+        
+        // Charts
+        renderCharts(txs);
+    }
+
+    function renderReport() {
+        const type = document.getElementById('reportType').value;
+        const div = document.getElementById('reportOutput');
+        const optionCont = document.getElementById('reportOptionContainer');
+        div.innerHTML = '';
+
+        // Toggle Option Visibility
+        optionCont.style.display = (type === 'MOVEMENT') ? 'block' : 'none';
+
+        if(type === 'BALANCE') {
+            let html = `<h4>รายงานยอดคงเหลือปัจจุบัน</h4>
+                        <table style="width:100%; border:1px solid #ddd;">
+                        <thead><tr style="background:#eee;"><th>รหัส</th><th>รายการ</th><th>หมวด</th><th>คงเหลือ</th><th>หน่วย</th><th>สถานที่เก็บ</th></tr></thead><tbody>`;
+            DB.items.sort((a,b) => a.code.localeCompare(b.code)).forEach(i => {
+                const bal = getStockBalance(i.id);
+                html += `<tr><td>${i.code}</td><td>${i.name}</td><td>${i.category}</td><td><b>${bal}</b></td><td>${i.unit}</td><td>${i.location||'-'}</td></tr>`;
+            });
+            html += `</tbody></table>`;
+            div.innerHTML = html;
+
+        } else if (type === 'MOVEMENT') {
+            const searchName = document.getElementById('reportProduct').value;
+            const name = searchName.split(' (')[0];
+            const item = DB.items.find(i => i.name === name);
+            if(!item) { div.innerHTML = '<p style="color:red; text-align:center; padding:20px;">กรุณาพิมพ์ชื่อและเลือกวัสดุจากรายการ</p>'; return; }
+
+            const txs = DB.transactions.filter(t => t.itemId === item.id && t.status !== 'VOID').sort((a,b) => new Date(a.date) - new Date(b.date));
+            let balance = 0;
+            let html = `<h4>บัญชีวัสดุ (Stock Card): ${item.name}</h4>
+                        <p>รหัส: ${item.code} | หน่วยนับ: ${item.unit} | จุดสั่งซื้อ: ${item.minStock}</p>
+                        <table style="width:100%; border:1px solid #ddd;">
+                        <thead><tr style="background:#eee;"><th>วัน/เดือน/ปี</th><th>อ้างอิง</th><th>รับจาก/จ่ายให้</th><th>รับ</th><th>จ่าย</th><th>คงเหลือ</th><th>หมายเหตุ</th></tr></thead><tbody>`;
+            
+            txs.forEach(t => {
+                let inQty = 0, outQty = 0;
+                if(t.type === 'IN') inQty = t.qty;
+                else if(t.type === 'OUT') outQty = t.qty;
+                else if(t.type === 'ADJ') { t.qty > 0 ? inQty = t.qty : outQty = Math.abs(t.qty); }
+                
+                balance += inQty - outQty;
+                
+                html += `<tr>
+                    <td>${t.date}</td>
+                    <td>${t.refDoc || '-'}</td>
+                    <td>${t.type === 'IN' ? t.supplier : t.division}</td>
+                    <td style="color:green">${inQty > 0 ? inQty : ''}</td>
+                    <td style="color:red">${outQty > 0 ? outQty : ''}</td>
+                    <td><b>${parseFloat(balance.toFixed(2))}</b></td>
+                    <td>${t.remark || ''} ${t.lot ? '(Lot:'+t.lot+')' : ''}</td>
+                </tr>`;
+            });
+            html += `</tbody></table>`;
+            div.innerHTML = html;
+
+        } else if (type === 'SUM_CAT') {
+             const cats = {};
+             DB.transactions.filter(t => t.type === 'OUT' && t.status !== 'VOID').forEach(t => {
+                 const i = DB.items.find(x => x.id === t.itemId);
+                 if(i) {
+                     cats[i.category] = (cats[i.category] || 0) + 1; // Count Transactions
+                 }
+             });
+             let html = `<h4>สรุปการเบิกจ่ายตามหมวดหมู่ (จำนวนครั้ง)</h4>
+                         <table style="width:100%; border:1px solid #ddd;">
+                         <thead><tr style="background:#eee;"><th>หมวดหมู่</th><th>จำนวนครั้งที่เบิก</th></tr></thead><tbody>`;
+             Object.keys(cats).forEach(c => {
+                 html += `<tr><td>${c}</td><td>${cats[c]}</td></tr>`;
+             });
+             html += `</tbody></table>`;
+             div.innerHTML = html;
+
+        } else if (type === 'SUM_DIV') {
+             const divs = {};
+             DB.transactions.filter(t => t.type === 'OUT' && t.status !== 'VOID').forEach(t => {
+                 const d = t.division || 'ไม่ระบุ';
+                 divs[d] = (divs[d] || 0) + 1;
+             });
+             let html = `<h4>สรุปการเบิกจ่ายตามหน่วยงาน (จำนวนครั้ง)</h4>
+                         <table style="width:100%; border:1px solid #ddd;">
+                         <thead><tr style="background:#eee;"><th>หน่วยงาน</th><th>จำนวนครั้งที่เบิก</th></tr></thead><tbody>`;
+             Object.keys(divs).forEach(d => {
+                 html += `<tr><td>${d}</td><td>${divs[d]}</td></tr>`;
+             });
+             html += `</tbody></table>`;
+             div.innerHTML = html;
+        }
+    }
+
+    // --- CHART LOGIC ---
+    let chart1=null, chart2=null;
+    function renderCharts(txs) {
+        // 1. Monthly Out
+        const monthly = {};
+        txs.filter(t => t.type === 'OUT').forEach(t => {
+            const m = t.date.substring(0, 7);
+            monthly[m] = (monthly[m] || 0) + 1;
+        });
+        
+        const ctx1 = document.getElementById('chartMonthly').getContext('2d');
+        if(chart1) chart1.destroy();
+        chart1 = new Chart(ctx1, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(monthly).sort(),
+                datasets: [{ label: 'รายการเบิก (ครั้ง)', data: Object.values(monthly), backgroundColor: '#3498db' }]
+            }
+        });
+
+        // 2. Division Out
+        const divData = {};
+        txs.filter(t => t.type === 'OUT').forEach(t => {
+            const d = t.division || 'อื่นๆ';
+            divData[d] = (divData[d] || 0) + 1;
+        });
+        
+        const ctx2 = document.getElementById('chartDivision').getContext('2d');
+        if(chart2) chart2.destroy();
+        chart2 = new Chart(ctx2, {
+            type: 'pie',
+            data: {
+                labels: Object.keys(divData),
+                datasets: [{ data: Object.values(divData), backgroundColor: ['#e74c3c','#f1c40f','#2ecc71','#9b59b6','#34495e','#1abc9c'] }]
+            }
+        });
+    }
+
+    // --- HELPERS ---
+    function sanitize(str) { return str ? str.replace(/</g, "&lt;").replace(/>/g, "&gt;") : ''; }
+    
+    function getFiscalDateRange(year) {
+        const y = parseInt(year) - 543;
+        return [`${y-1}-10-01`, `${y}-09-30`];
+    }
+    
+    function renderFiscalYearSelect() {
+        const curY = new Date().getFullYear() + 543;
+        const sel = document.getElementById('fiscalYearFilter');
+        for(let i=0; i<5; i++) {
+            const y = curY - i + 1;
+            sel.innerHTML += `<option value="${y}">ปีงบ ${y}</option>`;
+        }
+        const m = new Date().getMonth() + 1;
+        sel.value = (m >= 10) ? curY + 1 : curY;
+    }
+
+    function saveData() { localStorage.setItem('SAO_DB_V3', JSON.stringify(DB)); }
+    function loadData() {
+        const d = localStorage.getItem('SAO_DB_V3');
+        if(d) {
+             const parsed = JSON.parse(d);
+             // Migration check if needed
+             DB = parsed;
+        }
+    }
+    function backupData() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(DB));
+        const a = document.createElement('a');
+        a.href = dataStr;
+        a.download = "sao_stock_v3_backup_" + new Date().toISOString().slice(0,10) + ".json";
+        a.click();
+    }
+    function restoreData(input) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            if(confirm('ข้อมูลเก่าจะถูกลบและแทนที่ด้วยไฟล์ Backup ยืนยัน?')) {
+                DB = JSON.parse(e.target.result);
+                saveData();
+                location.reload();
+            }
+        };
+        reader.readAsText(input.files[0]);
+    }
+    function exportCSV() {
+        let csv = "\uFEFFวันที่,สถานะ,ประเภท,รหัส,รายการ,จำนวน,หน่วย,อ้างอิง/หน่วยงาน,ผู้ทำรายการ,หมายเหตุ\n";
+        DB.transactions.forEach(t => {
+            const item = DB.items.find(i => i.id === t.itemId);
+            csv += `${t.date},${t.status},${t.type},${item?item.code:'-'},"${item?item.name:'-'}",${t.qty},"${item?item.unit:'-'}",${t.refDoc||t.division||t.supplier},${t.user},"${t.remark}"\n`;
+        });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv;charset=utf-8;'}));
+        a.download = `sao_stock_report.csv`;
+        a.click();
+    }
+</script>
+</body>
+</html>
